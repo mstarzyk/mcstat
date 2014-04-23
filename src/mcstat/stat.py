@@ -1,0 +1,2 @@
+class Stat(object):
+    pass
