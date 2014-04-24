@@ -56,6 +56,10 @@ def receiver(addr, queue, wake_up_fd):
     buffer = bytearray(4096)
 
     try:
+        now = time.time()
+        for _, ip, port in socks_map.values():
+            dst = (ip, port)
+            queue.put_nowait(Stat(now, (dst, 0, 0)))
         while loop:
             events = epoll.poll()
             now = time.time()
@@ -67,7 +71,7 @@ def receiver(addr, queue, wake_up_fd):
                 sock, ip, port = socks_map[fileno]
                 data_len = sock.recv_into(buffer)
                 dst = (ip, port)
-                queue.put_nowait(Stat(now, (dst, data_len)))
+                queue.put_nowait(Stat(now, (dst, 1, data_len)))
     finally:
         for sock, ip, port in socks_map.values():
             epoll.unregister(sock.fileno())
@@ -94,9 +98,9 @@ def worker(queue):
                         aggr.packets = 0
                         aggr.bytes = 0
                 else:
-                    dst, len_data = event.data
+                    dst, packets, len_data = event.data
                     aggr = stats[dst]
-                    aggr.packets += 1
+                    aggr.packets += packets
                     aggr.bytes += len_data
             queue.task_done()
         except:
