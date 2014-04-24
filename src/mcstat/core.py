@@ -97,8 +97,7 @@ def worker(queue):
                         print("{:f}\t{}\t{:d}\t{:d}\t{:d}".format(
                             now, addr, port, aggr.packets, aggr.bytes)
                             )
-                        aggr.packets = 0
-                        aggr.bytes = 0
+                    stats = {key: Aggr() for key in stats}
                 else:
                     dst, packets, len_data = event.data
                     aggr = stats[dst]
