@@ -1,11 +1,16 @@
-from distutils.core import setup
+from setuptools import setup
 
 setup(name='mcstat',
-      version='0.1',
+      version='0.2.dev',
       description='Multicast statistics',
       author='Maciej Starzyk',
       author_email='mstarzyk@gmail.com',
       url='',
-      requires=['pytest'],
-      packages=['mcstat', 'mctat.tests'],
+      # tests_require=['pytest'],
+      packages=['mcstat', 'mcstat.tests'],
+      entry_points={
+          'console_scripts': [
+              'mcstat = mcstat.main:main',
+          ],
+      }
       )

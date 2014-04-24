@@ -141,6 +141,3 @@ def main():
 
     addr = list(set(args.addr))
     return main2(addr)
-
-if __name__ == "__main__":
-    main()
