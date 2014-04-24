@@ -87,9 +87,10 @@ def worker(queue):
                 now = event.timestamp
                 if event.is_tick():
                     log.debug("%.03f: Tick", now)
-                    for key, aggr in stats.items():
-                        log.debug("  %s:\t%d\t%d", key, aggr.packets,
-                                  aggr.bytes)
+                    for (addr, port), aggr in stats.items():
+                        print("{:f}\t{}\t{:d}\t{:d}\t{:d}".format(
+                            now, addr, port, aggr.packets, aggr.bytes)
+                            )
                         aggr.packets = 0
                         aggr.bytes = 0
                 else:
