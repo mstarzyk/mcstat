@@ -40,11 +40,11 @@ class Aggr:
     bytes = 0
 
 
-def receiver(addrs, queue, wake_up_fd):
+def receiver(addr, queue, wake_up_fd):
     # Maps fileno to (socket, ip, port)
     socks_map = {}
     epoll = select.epoll()
-    for ip, port in addrs:
+    for ip, port in addr:
         sock = make_multicast_server_socket(ip, port)
         socks_map[sock.fileno()] = (sock, ip, port)
         epoll.register(sock.fileno(), select.EPOLLIN)
@@ -102,8 +102,8 @@ def worker(queue):
             break
 
 
-def ping(queue):
+def ping(queue, interval):
     while True:
-        time.sleep(1)
+        time.sleep(interval)
         now = time.time()
         queue.put_nowait(Tick(now))

@@ -59,18 +59,21 @@ def signal_to_pipe(signal_number):
     return pipe_read
 
 
-def make_ping_thread(queue):
-    ping_thread = ThreadWithLog(name="ping", target=ping, args=(queue, ))
+def make_ping_thread(queue, interval):
+    ping_thread = ThreadWithLog(name="ping", target=ping,
+                                args=(queue, interval)
+                                )
     # Ping thread is stateless, so we don't need to shut it down gracefully.
     ping_thread.setDaemon(True)
     return ping_thread
 
 
-def main2(addrs):
+def main2(addr, interval):
     """
-    addrs - list of tuples (address, port)
+    addr - list of tuples (address, port)
+    interval - interval in seconds for calculating statistics
     """
-    for ip, port in addrs:
+    for ip, port in addr:
         assert is_multicast(ip)
 
     wake_up_fd = signal_to_pipe(signal.SIGINT)
@@ -79,8 +82,8 @@ def main2(addrs):
     threads = [
         ThreadWithLog(name="worker", target=worker, args=(queue, )),
         ThreadWithLog(name="receiver", target=receiver,
-                      args=(addrs, queue, wake_up_fd)),
-        make_ping_thread(queue)
+                      args=(addr, queue, wake_up_fd)),
+        make_ping_thread(queue, interval)
         ]
     for thread in threads:
         thread.start()
@@ -140,4 +143,4 @@ def main():
     log.debug("Command line arguments: %s", args)
 
     addr = list(set(args.addr))
-    return main2(addr)
+    return main2(addr=addr, interval=args.interval)
