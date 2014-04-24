@@ -44,18 +44,19 @@ def receiver(addr, queue, wake_up_fd):
     # Maps fileno to (socket, ip, port)
     socks_map = {}
     epoll = select.epoll()
-    for ip, port in addr:
-        sock = make_multicast_server_socket(ip, port)
-        socks_map[sock.fileno()] = (sock, ip, port)
-        epoll.register(sock.fileno(), select.EPOLLIN)
-
-    epoll.register(wake_up_fd, select.EPOLLIN)
 
     loop = True
 
     buffer = bytearray(4096)
 
     try:
+        for ip, port in addr:
+            sock = make_multicast_server_socket(ip, port)
+            socks_map[sock.fileno()] = (sock, ip, port)
+            epoll.register(sock.fileno(), select.EPOLLIN)
+
+        epoll.register(wake_up_fd, select.EPOLLIN)
+
         now = time.time()
         for _, ip, port in socks_map.values():
             dst = (ip, port)
@@ -66,7 +67,6 @@ def receiver(addr, queue, wake_up_fd):
             for fileno, event in events:
                 if fileno == wake_up_fd:
                     loop = False
-                    queue.put(Term(now))
                     break
                 sock, ip, port = socks_map[fileno]
                 data_len = sock.recv_into(buffer)
@@ -77,6 +77,8 @@ def receiver(addr, queue, wake_up_fd):
             epoll.unregister(sock.fileno())
             sock.close()
         epoll.close()
+        now = time.time()
+        queue.put_nowait(Term(now))
 
 
 def worker(queue):
