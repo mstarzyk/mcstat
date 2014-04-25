@@ -8,11 +8,6 @@ import os
 import signal
 import threading
 
-# logging.basicConfig(level=logging.INFO)
-logging.basicConfig(level=logging.DEBUG,
-                    format='[%(levelname)-5s] (%(threadName)-8s) %(message)s',
-                    )
-
 
 try:
     # Python 2
@@ -130,6 +125,8 @@ def cmdline():
                         help="Interval in seconds (default={})".format(
                             default_interval)
                         )
+    parser.add_argument("-v", action="store_true", dest="verbose",
+                        help="Verbose output.", default=False)
 
     parser.add_argument("addr", metavar='addr', nargs='+',
                         type=multicast_address,
@@ -138,9 +135,22 @@ def cmdline():
     return parser.parse_args()
 
 
+def setup_logging(level):
+    logging.basicConfig(
+        level=level,
+        format='[%(levelname)-5s] (%(threadName)-8s) %(message)s'
+        )
+
+
 def main():
     args = cmdline()
     log.debug("Command line arguments: %s", args)
+
+    if args.verbose:
+        logging_level = logging.DEBUG
+    else:
+        logging_level = logging.INFO
+    setup_logging(logging_level)
 
     addr = list(set(args.addr))
     return main2(addr=addr, interval=args.interval)
