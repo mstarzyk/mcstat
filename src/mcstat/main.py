@@ -153,5 +153,9 @@ def main():
 
     log.debug("Command line arguments: %s", args)
 
+    actions = {'output': None,
+               'db': None
+               }
+
     addr = list(set(args.addr))
     return main2(addr=addr, interval=args.interval)

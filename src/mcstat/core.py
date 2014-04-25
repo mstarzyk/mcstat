@@ -30,18 +30,28 @@ class Tick(Event):
 
 
 class Stat(Event):
-    def __init__(self, timestamp, data):
+    def __init__(self, timestamp, channel, aggr):
         Event.__init__(self, timestamp)
-        self.data = data
+        self.channel = channel
+        self.aggr = aggr
 
 
 class Aggr:
-    packets = 0
-    bytes = 0
+    def __init__(self, packets, bytes):
+        self.packets = packets
+        self.bytes = bytes
+
+    def __iadd__(self, b):
+        self.packets += b.packets
+        self.bytes += b.bytes
+
+    @classmethod
+    def empty(cls):
+        return Aggr(0, 0)
 
 
-def receiver(addr, queue, wake_up_fd):
-    # Maps fileno to (socket, ip, port)
+def receiver(channels, queue, wake_up_fd):
+    # Maps file descriptor to (socket, ip, port)
     socks_map = {}
     epoll = select.epoll()
 
@@ -50,17 +60,16 @@ def receiver(addr, queue, wake_up_fd):
     buffer = bytearray(4096)
 
     try:
-        for ip, port in addr:
+        for ip, port in channels:
             sock = make_multicast_server_socket(ip, port)
-            socks_map[sock.fileno()] = (sock, ip, port)
+            socks_map[sock.fileno()] = (sock, (ip, port))
             epoll.register(sock.fileno(), select.EPOLLIN)
 
         epoll.register(wake_up_fd, select.EPOLLIN)
 
         now = time.time()
-        for _, ip, port in socks_map.values():
-            dst = (ip, port)
-            queue.put_nowait(Stat(now, (dst, 0, 0)))
+        for _, channel in socks_map.values():
+            queue.put_nowait(Stat(now, channel, Aggr.empty()))
         while loop:
             events = epoll.poll()
             now = time.time()
@@ -68,12 +77,11 @@ def receiver(addr, queue, wake_up_fd):
                 if fileno == wake_up_fd:
                     loop = False
                     break
-                sock, ip, port = socks_map[fileno]
-                data_len = sock.recv_into(buffer)
-                dst = (ip, port)
-                queue.put_nowait(Stat(now, (dst, 1, data_len)))
+                sock, channel = socks_map[fileno]
+                num_bytes = sock.recv_into(buffer)
+                queue.put_nowait(Stat(now, channel, Aggr(1, num_bytes)))
     finally:
-        for sock, ip, port in socks_map.values():
+        for sock, _ in socks_map.values():
             epoll.unregister(sock.fileno())
             sock.close()
         epoll.close()
@@ -82,7 +90,7 @@ def receiver(addr, queue, wake_up_fd):
 
 
 def worker(queue):
-    stats = collections.defaultdict(Aggr)
+    stats = collections.defaultdict(Aggr.empty)
 
     while True:
         try:
@@ -97,12 +105,10 @@ def worker(queue):
                         print("{:f}\t{}\t{:d}\t{:d}\t{:d}".format(
                             now, addr, port, aggr.packets, aggr.bytes)
                             )
-                    stats = {key: Aggr() for key in stats}
+                    stats = {key: Aggr.empty() for key in stats}
                 else:
-                    dst, packets, len_data = event.data
-                    aggr = stats[dst]
-                    aggr.packets += packets
-                    aggr.bytes += len_data
+                    aggr = stats[event.channel]
+                    aggr += event.aggr
             queue.task_done()
         except:
             break
