@@ -144,13 +144,14 @@ def setup_logging(level):
 
 def main():
     args = cmdline()
-    log.debug("Command line arguments: %s", args)
 
     if args.verbose:
         logging_level = logging.DEBUG
     else:
         logging_level = logging.INFO
     setup_logging(logging_level)
+
+    log.debug("Command line arguments: %s", args)
 
     addr = list(set(args.addr))
     return main2(addr=addr, interval=args.interval)
