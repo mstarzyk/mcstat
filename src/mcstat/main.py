@@ -95,11 +95,12 @@ def setup_logging(level):
 def main():
     args = parse_commandline(sys.argv[1:])
     config = make_config(args)
-    setup_logging(config.logging_level)
+    setup_logging(config.main.logging_level)
     log.debug("Configuration:\n%s", config)
 
     # actions = {'output': None,
     #            'db': None
     #            }
 
-    return main2(addr=config.addr, interval=config.interval)
+    return main2(addr=config.main.channels,
+                 interval=config.main.interval)

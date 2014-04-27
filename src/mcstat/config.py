@@ -6,16 +6,31 @@ import logging
 from collections import namedtuple
 
 
-_DB = ('query_sql', 'update_sql', 'host', 'database', 'user', 'password')
-_MAIN = ('logging_level', 'addr', 'interval')
+_Config = namedtuple('Config', ('main', 'db', 'statsd'))
+_Main = namedtuple('Main', ('logging_level', 'channels', 'interval'))
+_DB = namedtuple('DB', ('query_sql', 'update_sql', 'host', 'database',
+                        'user', 'password')
+                 )
+_Statsd = namedtuple('Statsd', ('host', 'port'))
 
-_Config = namedtuple('Config', _MAIN + _DB)
+
+def with_defaults(cls, f=lambda key: None):
+    def _(**kwargs):
+        dd = dict(kwargs)
+        for attr in cls._fields:
+            if attr not in dd:
+                dd[attr] = f(attr)
+        return cls(**dd)
+    return _
 
 
-def Config(**kwargs):
-    dd = {attr: None for attr in (_MAIN + _DB)}
-    dd.update(kwargs)
-    return _Config(**dd)
+Main = with_defaults(_Main)
+DB = with_defaults(_DB)
+Statsd = with_defaults(_Statsd)
+Config = with_defaults(_Config, lambda key: {'main': Main,
+                                             'db': DB,
+                                             'statsd': Statsd
+                                             }[key]())
 
 
 def load_config(file_name):
@@ -30,8 +45,15 @@ def load_config(file_name):
     parser = ConfigParser.SafeConfigParser()
     parser.read(file_name)
 
-    db_config = {attr: parser.get('db', attr) for attr in _DB}
-    return Config(**db_config)
+    def cc(name, attrs):
+        return {attr: parser.get(name, attr) for attr in attrs}
+
+    db_config = cc('db', _DB._fields)
+    statsd_config = cc('statsd', _Statsd._fields)
+
+    return Config(db=DB(**db_config),
+                  statsd=Statsd(**statsd_config)
+                  )
 
 
 def parse_commandline(args):
@@ -121,14 +143,30 @@ def merge_configs(*configs):
       Merged config.
     """
 
-    acc = {}
-    for config in reversed(configs):
-        non_empty_config = {key: value for key, value in vars(config).items()
-                            if value is not None
-                            }
-        acc.update(non_empty_config)
+    def full_vars(obj):
+        return {key: value for key, value in vars(obj).items()
+                if value is not None}
 
-    return Config(**acc)
+    def merge(a, b):
+        dd = full_vars(b)
+        dd.update(full_vars(a))
+        ctor = with_defaults(type(a))
+        return ctor(**dd)
+
+    def merge_conf(a, b):
+        return Config(main=merge(a.main, b.main),
+                      db=merge(a.db, b.db),
+                      statsd=merge(a.statsd, b.statsd)
+                      )
+
+    if len(configs) == 0:
+        return Config()
+    elif len(configs) == 1:
+        return configs[0]
+    else:
+        left = configs[:2]
+        right = configs[2:]
+        return merge_configs(merge_conf(*left), *right)
 
 
 def args_to_config(args):
@@ -142,10 +180,11 @@ def args_to_config(args):
     """
     logging_level = logging.DEBUG if args.verbose else logging.INFO
 
-    return Config(logging_level=logging_level,
-                  addr=tuple(set(args.addr)),
-                  interval=args.interval
-                  )
+    return Config(main=Main(
+        logging_level=logging_level,
+        channels=tuple(set(args.addr)),
+        interval=args.interval
+        ))
 
 
 def make_config(args):
@@ -159,9 +198,9 @@ def make_config(args):
     Returns:
       Config
     """
-    configs = [args_to_config(args)]
+    config = args_to_config(args)
 
     if args.config:
-        configs.append(load_config(args.config))
-
-    return merge_configs(*configs)
+        return merge_configs(config, load_config(args.config))
+    else:
+        return config
