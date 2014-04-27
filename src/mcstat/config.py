@@ -3,22 +3,41 @@ from mcstat.net import is_multicast
 import ConfigParser
 import argparse
 import logging
+import pprint
 
 
-# TODO: Namespaces
 _DB = ('query_sql', 'update_sql', 'host', 'database', 'user', 'password')
 _MAIN = ('logging_level', 'addr', 'interval')
 
 
 class Config(object):
+    # TODO: Split configuration params into Namespaces?
+    # TODO: Do not use slots?
     __slots__ = _MAIN + _DB
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def __repr__(self):
+        attrs = {}
+        for attr in self.__slots__:
+            if hasattr(self, attr):
+                attrs[attr] = getattr(self, attr)
+        return pprint.pformat(attrs)
+
+    def fill_default_args(self):
+
+        for attr in self.__slots__:
+            if not hasattr(self, attr):
+                setattr(self, attr, None)
 
 
 def load_config(file_name):
-    """Loads configuration from the given file.
+    """Loads configuration from file.
 
     Args:
-      file_name: Path to the  configuration file.
+      file_name: Configuration file path.
 
     Returns:
       Config
@@ -109,12 +128,35 @@ def multicast_address(string):
     return (addr, port)
 
 
-def merge(args, config):
-    """Merges configuration from commandline, and configuration file.
+def merge_configs(*configs):
+    """Merges configurations.
+
+    Sets default values to None for all unset attributes.
 
     Args:
-      args: Commandline arguments (required)
-      config: ConfigParser (optional)
+      config: Config objects, in the order of precendence.
+
+    Returns:
+      Merged config.
+    """
+
+    ret = Config()
+
+    for config in reversed(configs):
+        for attr in Config.__slots__:
+            if hasattr(config, attr):
+                setattr(ret, attr, getattr(config, attr))
+
+    ret.fill_default_args()
+
+    return ret
+
+
+def args_to_config(args):
+    """Converts commandline arguments to Config.
+
+    Args:
+      args: Commandline arguments
 
     Returns:
       Config
@@ -125,10 +167,7 @@ def merge(args, config):
     else:
         ret.logging_level = logging.INFO
 
-    if config is None:
-        pass
-
-    ret.addr = list(set(args.addr))
+    ret.addr = tuple(set(args.addr))
     ret.interval = args.interval
 
     return ret
@@ -145,9 +184,9 @@ def make_config(args):
     Returns:
       Config
     """
-    if args.config:
-        config = load_config(args.config)
-    else:
-        config = None
+    configs = [args_to_config(args)]
 
-    return merge(args, config)
+    if args.config:
+        configs.append(load_config(args.config))
+
+    return merge_configs(*configs)

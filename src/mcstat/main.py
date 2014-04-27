@@ -96,6 +96,7 @@ def main():
     args = parse_commandline(sys.argv[1:])
     config = make_config(args)
     setup_logging(config.logging_level)
+    log.debug("Configuration:\n%s", config)
 
     # actions = {'output': None,
     #            'db': None
