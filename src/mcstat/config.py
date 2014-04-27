@@ -5,9 +5,12 @@ import argparse
 import logging
 from collections import namedtuple
 
+default_interval = 1
 
 _Config = namedtuple('Config', ('main', 'db', 'statsd'))
-_Main = namedtuple('Main', ('logging_level', 'channels', 'interval'))
+_Main = namedtuple('Main', ('logging_level', 'channels', 'interval',
+                            'stats_output', 'channels_from_db')
+                   )
 _DB = namedtuple('DB', ('query_sql', 'update_sql', 'host', 'database',
                         'user', 'password')
                  )
@@ -45,22 +48,38 @@ def load_config(file_name):
     parser = ConfigParser.SafeConfigParser()
     parser.read(file_name)
 
+    def zz(name, section='main', get=parser.get, proc=lambda x: x):
+        if parser.has_option(section, name):
+            return proc(get(section, name))
+        else:
+            return None
+
     def cc(name, attrs):
-        return {attr: parser.get(name, attr) for attr in attrs}
+        return {attr: parser.get(name, attr) for attr in attrs
+                if parser.has_option(name, attr)
+                }
 
     db_config = cc('db', _DB._fields)
     statsd_config = cc('statsd', _Statsd._fields)
+    if 'port' in statsd_config:
+        statsd_config['port'] = int(statsd_config['port'])
 
-    return Config(db=DB(**db_config),
+    split = lambda x: x.split()
+    addr = lambda x: tuple({multicast_address(a) for a in x.split()})
+    main = Main(channels_from_db=zz('channels_from_db', get=parser.getboolean),
+                interval=zz('interval', get=parser.getint),
+                channels=zz('channels', proc=addr),
+                stats_output=zz('stats_output', proc=split)
+                )
+
+    return Config(main=main,
+                  db=DB(**db_config),
                   statsd=Statsd(**statsd_config)
                   )
 
 
-def parse_commandline(args):
-    """Parses commandline arguments.
-
-    Args:
-      args: Commandline arguments.
+def commandline_parser():
+    """Creates commandline arguments parser.
 
     Returns:
       arparse.Namespace
@@ -69,37 +88,45 @@ def parse_commandline(args):
         description="Multicast statistics.",
         epilog=None
         )
+    parser.add_argument("-v", action="store_true", dest="verbose",
+                        help="Verbose output.", default=False)
+
     parser.add_argument("-c", action='store', dest='config',
                         metavar="FILE",
                         help='Configuration file.'
                         )
 
-    parser.add_argument("-v", action="store_true", dest="verbose",
-                        help="Verbose output.", default=False)
+    parser.add_argument("-s", action='append_const', dest='stats_output',
+                        const='stdout',
+                        help='Write statistics to standard out (default).'
+                        )
 
-    group = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument("-d", action='append_const', dest='stats_output',
+                        const='db',
+                        help='Write statistics to database.'
+                        )
 
-    group.add_argument("-s", action='store_const', dest='action',
-                       const='output',
-                       help='Print statistics to standard out.'
-                       )
-    group.add_argument("-d", action='store_const', dest='action',
-                       const='db',
-                       help='Write statistics to database.'
-                       )
-
-    default_interval = 1
     parser.add_argument("-n", dest='interval', type=int,
-                        default=default_interval,
-                        help="Interval in seconds (default={})".format(
+                        help="Interval in seconds (default={}).".format(
                             default_interval)
                         )
 
-    parser.add_argument("addr", metavar='addr', nargs='+',
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("-r", action='store_true', dest='channels_from_db',
+                       help='Read channels from database.'
+                       )
+
+    group.add_argument("-x", action='store_false', dest='channels_from_db',
+                       help='Do not read channels from database.'
+                       )
+
+    parser.add_argument("channel", metavar='channel', nargs='*',
                         type=multicast_address,
-                        help='Multicast address (ip:port)'
+                        help='Multicast address (ip:port). If not specified' +
+                             ' here, then channels should be set in' +
+                             ' configuration file or read from database.'
                         )
-    return parser.parse_args(args)
+    return parser
 
 
 def multicast_address(string):
@@ -180,11 +207,13 @@ def args_to_config(args):
     """
     logging_level = logging.DEBUG if args.verbose else logging.INFO
 
-    return Config(main=Main(
+    main = Main(
         logging_level=logging_level,
-        channels=tuple(set(args.addr)),
-        interval=args.interval
-        ))
+        channels=tuple(set(args.channel)) or None,
+        interval=args.interval,
+        stats_output=args.stats_output
+        )
+    return Config(main=main)
 
 
 def make_config(args):
@@ -193,14 +222,23 @@ def make_config(args):
     Loads optional configuration from file.
 
     Args:
-      args: Parsed commandline arguments.
+      args: Commandline arguments.
 
     Returns:
       Config
     """
-    config = args_to_config(args)
-
+    parser = commandline_parser()
+    args = parser.parse_args(args)
+    all_configs = [args_to_config(args)]
     if args.config:
-        return merge_configs(config, load_config(args.config))
-    else:
-        return config
+        all_configs.append(load_config(args.config))
+    defaults = Config(main=Main(
+        interval=default_interval,
+        stats_output=['stdout'],
+        channels_from_db=False
+        ))
+    all_configs.append(defaults)
+    config = merge_configs(*all_configs)
+    if not config.main.channels or not config.main.channels_from_db:
+        parser.error("No channels specified.")
+    return config

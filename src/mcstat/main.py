@@ -1,6 +1,6 @@
 from mcstat.core import ping, worker, receiver
 from mcstat.net import is_multicast
-from mcstat.config import parse_commandline, make_config
+from mcstat.config import make_config
 
 import fcntl
 import logging
@@ -93,14 +93,8 @@ def setup_logging(level):
 
 
 def main():
-    args = parse_commandline(sys.argv[1:])
-    config = make_config(args)
+    config = make_config(sys.argv[1:])
     setup_logging(config.main.logging_level)
     log.debug("Configuration:\n%s", config)
-
-    # actions = {'output': None,
-    #            'db': None
-    #            }
-
     return main2(addr=config.main.channels,
                  interval=config.main.interval)
