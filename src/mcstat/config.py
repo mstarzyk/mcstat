@@ -3,34 +3,19 @@ from mcstat.net import is_multicast
 import ConfigParser
 import argparse
 import logging
-import pprint
+from collections import namedtuple
 
 
 _DB = ('query_sql', 'update_sql', 'host', 'database', 'user', 'password')
 _MAIN = ('logging_level', 'addr', 'interval')
 
+_Config = namedtuple('Config', _MAIN + _DB)
 
-class Config(object):
-    # TODO: Split configuration params into Namespaces?
-    # TODO: Do not use slots?
-    __slots__ = _MAIN + _DB
 
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-    def __repr__(self):
-        attrs = {}
-        for attr in self.__slots__:
-            if hasattr(self, attr):
-                attrs[attr] = getattr(self, attr)
-        return pprint.pformat(attrs)
-
-    def fill_default_args(self):
-
-        for attr in self.__slots__:
-            if not hasattr(self, attr):
-                setattr(self, attr, None)
+def Config(**kwargs):
+    dd = {attr: None for attr in (_MAIN + _DB)}
+    dd.update(kwargs)
+    return _Config(**dd)
 
 
 def load_config(file_name):
@@ -45,12 +30,8 @@ def load_config(file_name):
     parser = ConfigParser.SafeConfigParser()
     parser.read(file_name)
 
-    config = Config()
-
-    for option in ('query_sql', 'update_sql', 'host', 'database',
-                   'user', 'password'):
-        setattr(config, option, parser.get('db', option))
-    return config
+    db_config = {attr: parser.get('db', attr) for attr in _DB}
+    return Config(**db_config)
 
 
 def parse_commandline(args):
@@ -140,16 +121,14 @@ def merge_configs(*configs):
       Merged config.
     """
 
-    ret = Config()
-
+    acc = {}
     for config in reversed(configs):
-        for attr in Config.__slots__:
-            if hasattr(config, attr):
-                setattr(ret, attr, getattr(config, attr))
+        non_empty_config = {key: value for key, value in vars(config).items()
+                            if value is not None
+                            }
+        acc.update(non_empty_config)
 
-    ret.fill_default_args()
-
-    return ret
+    return Config(**acc)
 
 
 def args_to_config(args):
@@ -161,16 +140,12 @@ def args_to_config(args):
     Returns:
       Config
     """
-    ret = Config()
-    if args.verbose:
-        ret.logging_level = logging.DEBUG
-    else:
-        ret.logging_level = logging.INFO
+    logging_level = logging.DEBUG if args.verbose else logging.INFO
 
-    ret.addr = tuple(set(args.addr))
-    ret.interval = args.interval
-
-    return ret
+    return Config(logging_level=logging_level,
+                  addr=tuple(set(args.addr)),
+                  interval=args.interval
+                  )
 
 
 def make_config(args):

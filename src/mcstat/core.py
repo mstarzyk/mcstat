@@ -55,8 +55,6 @@ def receiver(channels, queue, wake_up_fd):
     socks_map = {}
     epoll = select.epoll()
 
-    loop = True
-
     buffer = bytearray(4096)
 
     try:
@@ -70,6 +68,9 @@ def receiver(channels, queue, wake_up_fd):
         now = time.time()
         for _, channel in socks_map.values():
             queue.put_nowait(Stat(now, channel, Aggr.empty()))
+
+        loop = True
+
         while loop:
             events = epoll.poll()
             now = time.time()
