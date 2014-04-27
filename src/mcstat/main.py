@@ -1,11 +1,12 @@
 from mcstat.core import ping, worker, receiver
 from mcstat.net import is_multicast
+from mcstat.config import parse_commandline, make_config
 
-import argparse
 import fcntl
 import logging
 import os
 import signal
+import sys
 import threading
 
 
@@ -84,57 +85,6 @@ def main2(addr, interval):
         thread.start()
 
 
-def multicast_address(string):
-    chunks = string.split(':', 1)
-    if len(chunks) == 1:
-        raise argparse.ArgumentTypeError(
-            "Missing port: {!r}".format(string))
-
-    addr, str_port = chunks
-
-    try:
-        port = int(str_port)
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            "Invalid port: {!r}".format(str_port))
-
-    if not is_multicast(addr):
-        raise argparse.ArgumentTypeError(
-            "Invalid multicast address: {!r}".format(addr))
-
-    return (addr, port)
-
-
-def cmdline():
-    parser = argparse.ArgumentParser(
-        description="Multicast statistics.",
-        epilog=None
-        )
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("-s", action='store_const', dest='action',
-                       const='output',
-                       help='Print statistics to standard out.'
-                       )
-    group.add_argument("-d", action='store_const', dest='action',
-                       const='db',
-                       help='Write statistics to database.'
-                       )
-    default_interval = 1
-    parser.add_argument("-n", dest='interval', type=int,
-                        default=default_interval,
-                        help="Interval in seconds (default={})".format(
-                            default_interval)
-                        )
-    parser.add_argument("-v", action="store_true", dest="verbose",
-                        help="Verbose output.", default=False)
-
-    parser.add_argument("addr", metavar='addr', nargs='+',
-                        type=multicast_address,
-                        help='Multicast address (ip:port)'
-                        )
-    return parser.parse_args()
-
-
 def setup_logging(level):
     logging.basicConfig(
         level=level,
@@ -143,19 +93,12 @@ def setup_logging(level):
 
 
 def main():
-    args = cmdline()
+    args = parse_commandline(sys.argv[1:])
+    config = make_config(args)
+    setup_logging(config.logging_level)
 
-    if args.verbose:
-        logging_level = logging.DEBUG
-    else:
-        logging_level = logging.INFO
-    setup_logging(logging_level)
+    # actions = {'output': None,
+    #            'db': None
+    #            }
 
-    log.debug("Command line arguments: %s", args)
-
-    actions = {'output': None,
-               'db': None
-               }
-
-    addr = list(set(args.addr))
-    return main2(addr=addr, interval=args.interval)
+    return main2(addr=config.addr, interval=config.interval)

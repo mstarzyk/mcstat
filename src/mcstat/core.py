@@ -51,7 +51,7 @@ class Aggr:
 
 
 def receiver(channels, queue, wake_up_fd):
-    # Maps file descriptor to (socket, ip, port)
+    # Maps file descriptor to (socket, (ip, port))
     socks_map = {}
     epoll = select.epoll()
 
