@@ -116,10 +116,6 @@ def commandline_parser():
                        help='Read channels from database.'
                        )
 
-    group.add_argument("-x", action='store_false', dest='channels_from_db',
-                       help='Do not read channels from database.'
-                       )
-
     parser.add_argument("channel", metavar='channel', nargs='*',
                         type=multicast_address,
                         help='Multicast address (ip:port). If not specified' +
@@ -207,9 +203,12 @@ def args_to_config(args):
     """
     logging_level = logging.DEBUG if args.verbose else logging.INFO
 
+    channels = tuple(set(args.channel)) or None
+
     main = Main(
         logging_level=logging_level,
-        channels=tuple(set(args.channel)) or None,
+        channels=channels,
+        channels_from_db=False if channels else None,
         interval=args.interval,
         stats_output=args.stats_output
         )
