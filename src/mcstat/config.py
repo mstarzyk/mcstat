@@ -239,7 +239,6 @@ def make_config(args):
         ))
     all_configs.append(defaults)
     config = merge_configs(*all_configs)
-    print(config)
     if not (config.main.channels or config.main.channels_from_db):
         parser.error("No channels specified.")
     return config
