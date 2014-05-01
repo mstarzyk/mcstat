@@ -101,19 +101,20 @@ def commandline_parser():
                         help='Write statistics to standard out (default).'
                         )
 
-    parser.add_argument("-d", action='append_const', dest='stats_output',
-                        const='db',
-                        help='Write statistics to database.'
-                        )
-
     parser.add_argument("-n", dest='interval', type=int,
                         help="Interval in seconds (default={}).".format(
                             default_interval)
                         )
 
+    db = 'DB connection parameters should be defined in configuration file.'
+    parser.add_argument("-d", action='append_const', dest='stats_output',
+                        const='db',
+                        help='Write statistics to database. ' + db
+                        )
+
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument("-r", action='store_true', dest='channels_from_db',
-                       help='Read channels from database.'
+                       help='Read channels from database. ' + db
                        )
 
     parser.add_argument("channel", metavar='channel', nargs='*',
