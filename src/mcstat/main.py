@@ -1,4 +1,4 @@
-from mcstat.core import ping, worker, receiver
+from mcstat.core import ping, worker, receiver, console
 from mcstat.net import is_multicast
 from mcstat.config import make_config
 
@@ -56,31 +56,64 @@ def signal_to_pipe(signal_number):
 
 
 def make_ping_thread(queue, interval):
-    ping_thread = ThreadWithLog(name="ping", target=ping,
-                                args=(queue, interval)
-                                )
+    thread = ThreadWithLog(name="ping", target=ping,
+                           args=(queue, interval)
+                           )
     # Ping thread is stateless, so we don't need to shut it down gracefully.
-    ping_thread.setDaemon(True)
-    return ping_thread
+    thread.setDaemon(True)
+    return thread
 
 
-def main2(addr, interval):
+def make_console_thread(queue):
+    thread = ThreadWithLog(name="stdout",
+                           target=console,
+                           args=(queue,)
+                           )
+    thread.setDaemon(True)
+    return thread
+
+
+def main2(addr, interval, outputs):
     """
-    addr - list of tuples (address, port)
-    interval - interval in seconds for calculating statistics
+    :param addr: list of tuples (address, port)
+    :param interval: interval in seconds for calculating statistics
+    :param outputs: list of output keys
     """
     for ip, port in addr:
         assert is_multicast(ip)
 
     wake_up_fd = signal_to_pipe(signal.SIGINT)
-    queue = Queue(1000)
+
+    def make_queue():
+        return Queue(1000)
+
+    queue = make_queue()
+    output_queues = []
+
+    if 'db' in outputs:
+        # TODO
+        pass
+    if 'stdout' in outputs:
+        stdout_queue = make_queue()
+        output_queues.append(stdout_queue)
 
     threads = [
-        ThreadWithLog(name="worker", target=worker, args=(queue, )),
+        ThreadWithLog(name="worker", target=worker,
+                      args=(interval, queue, output_queues)
+                      ),
         ThreadWithLog(name="receiver", target=receiver,
-                      args=(addr, queue, wake_up_fd)),
+                      args=(addr, queue, wake_up_fd)
+                      ),
         make_ping_thread(queue, interval)
         ]
+
+    if 'stdout' in outputs:
+        threads.append(make_console_thread(stdout_queue))
+
+    if 'db' in outputs:
+        # TODO
+        pass
+
     for thread in threads:
         thread.start()
 
@@ -97,4 +130,6 @@ def main():
     setup_logging(config.main.logging_level)
     log.debug("Configuration:\n%s", config)
     return main2(addr=config.main.channels,
-                 interval=config.main.interval)
+                 interval=config.main.interval,
+                 outputs=config.main.stats_output
+                 )

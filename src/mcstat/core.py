@@ -1,4 +1,6 @@
 from mcstat.net import make_multicast_server_socket
+from mcstat.domain import Term, Tick, Sample, Aggr, MetricEvent
+from mcstat.stat import metrics
 
 import select
 import collections
@@ -6,48 +8,6 @@ import time
 import logging
 
 log = logging.getLogger('mcstat.core')
-
-
-class Event(object):
-    def __init__(self, timestamp):
-        self.timestamp = timestamp
-
-    def is_term(self):
-        return False
-
-    def is_tick(self):
-        return False
-
-
-class Term(Event):
-    def is_term(self):
-        return True
-
-
-class Tick(Event):
-    def is_tick(self):
-        return True
-
-
-class Stat(Event):
-    def __init__(self, timestamp, channel, aggr):
-        Event.__init__(self, timestamp)
-        self.channel = channel
-        self.aggr = aggr
-
-
-class Aggr:
-    def __init__(self, packets, bytes):
-        self.packets = packets
-        self.bytes = bytes
-
-    def __iadd__(self, b):
-        self.packets += b.packets
-        self.bytes += b.bytes
-
-    @classmethod
-    def empty(cls):
-        return Aggr(0, 0)
 
 
 def receiver(channels, queue, wake_up_fd):
@@ -67,7 +27,7 @@ def receiver(channels, queue, wake_up_fd):
 
         now = time.time()
         for _, channel in socks_map.values():
-            queue.put_nowait(Stat(now, channel, Aggr.empty()))
+            queue.put_nowait(Sample(now, channel, Aggr.empty()))
 
         loop = True
 
@@ -80,39 +40,64 @@ def receiver(channels, queue, wake_up_fd):
                     break
                 sock, channel = socks_map[fileno]
                 num_bytes = sock.recv_into(buffer)
-                queue.put_nowait(Stat(now, channel, Aggr(1, num_bytes)))
+                queue.put_nowait(Sample(now, channel, Aggr(1, num_bytes)))
     finally:
         for sock, _ in socks_map.values():
             epoll.unregister(sock.fileno())
             sock.close()
         epoll.close()
-        now = time.time()
+        send_term(queue)
+
+
+def send_term(*queues):
+    """Send termination event to the given queue."""
+    now = time.time()
+    for queue in queues:
         queue.put_nowait(Term(now))
 
 
-def worker(queue):
-    stats = collections.defaultdict(Aggr.empty)
+def worker(interval, queue_in, queues_out):
+    aggrs = collections.defaultdict(Aggr.empty)
 
-    while True:
-        try:
-            event = queue.get()
+    def send_all(obj):
+        for queue in queues_out:
+            queue.put_nowait(obj)
+
+    try:
+        while True:
+            event = queue_in.get()
             if event.is_term():
+                send_all(event)
                 break
             else:
-                now = event.timestamp
                 if event.is_tick():
+                    now = event.timestamp
                     log.debug("%.03f: Tick", now)
-                    for (addr, port), aggr in stats.items():
-                        print("{:f}\t{}\t{:d}\t{:d}\t{:d}".format(
-                            now, addr, port, aggr.packets, aggr.bytes)
-                            )
-                    stats = {key: Aggr.empty() for key in stats}
+                    for channel, aggr in aggrs.items():
+                        m = metrics(now, interval, channel, aggr)
+                        send_all(MetricEvent(m))
+                    aggrs = {key: Aggr.empty() for key in aggrs}
                 else:
-                    aggr = stats[event.channel]
+                    aggr = aggrs[event.channel]
                     aggr += event.aggr
-            queue.task_done()
-        except:
+            queue_in.task_done()
+    except Exception, e:
+        log.error("WORKER %s", e)
+    finally:
+        send_term(*queues_out)
+
+
+def console(queue):
+    while True:
+        event = queue.get()
+        if event.is_term():
             break
+        else:
+            metric = event.metric
+            ip, port = metric.channel
+            print("{:f}\t{}\t{:d}\t{:f}\t{:f}".format(
+                metric.timestamp, ip, port, metric.bitrate, metric.packets))
+            queue.task_done()
 
 
 def ping(queue, interval):
