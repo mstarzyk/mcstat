@@ -81,26 +81,11 @@ def worker(interval, queue_in, queues_out):
                     aggr = aggrs[event.channel]
                     aggr += event.aggr
             queue_in.task_done()
-    except Exception, e:
-        log.error("WORKER %s", e)
     finally:
         send_term(*queues_out)
 
 
-def console(queue):
-    while True:
-        event = queue.get()
-        if event.is_term():
-            break
-        else:
-            metric = event.metric
-            ip, port = metric.channel
-            print("{:f}\t{}\t{:d}\t{:f}\t{:f}".format(
-                metric.timestamp, ip, port, metric.bitrate, metric.packets))
-            queue.task_done()
-
-
-def ping(queue, interval):
+def ping(interval, queue):
     while True:
         time.sleep(interval)
         now = time.time()

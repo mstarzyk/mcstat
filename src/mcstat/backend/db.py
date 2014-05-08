@@ -1,4 +1,6 @@
 import psycopg2
+import datetime
+from contextlib import closing
 
 
 class DB(object):
@@ -26,8 +28,8 @@ class DB(object):
     def get_channels(self):
         return self.retry(self._get_channels)
 
-    def write(self, channel_stats):
-        return self.retry(self._write, channel_stats)
+    def write(self, channel_metrics):
+        return self.retry(self._write, channel_metrics)
 
     def _get_channels(self):
         with self.connection.cursor() as cursor:
@@ -47,3 +49,25 @@ class DB(object):
         except (psycopg2.InterfaceError, psycopg2.OperationalError):
             self.close()
             return fun(*args, **kwargs)
+
+
+# TODO: Send events in batches
+def worker(queue, db_config):
+    def ts(timestamp):
+        return datetime.datetime.fromtimestamp(timestamp)
+
+    with closing(DB(db_config)) as db:
+        while True:
+            event = queue.get()
+            if event.is_term():
+                break
+            else:
+                metric = event.metric
+                ip, port = metric.channel
+                row = {'timestamp': ts(metric.timestamp),
+                       'ip': ip,
+                       'port': port,
+                       'bitrate': metric.bitrate,
+                       'packets': metric.packets
+                       }
+                db.write([row])
