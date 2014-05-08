@@ -90,7 +90,7 @@ def main2(channels, interval, outputs, db_config):
         queue = make_queue()
         import mcstat.backend.console as C
         output_queues.append(queue)
-        thread = T(name="stdout", target=C.worker, args=(queue,))
+        thread = make_daemon(T(name="stdout", target=C.worker, args=(queue,)))
         threads.append(thread)
 
     queue = make_queue()
