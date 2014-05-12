@@ -90,26 +90,15 @@ def commandline_parser():
                         help='Configuration file.'
                         )
 
-    parser.add_argument("-s", action='append_const', dest='stats_output',
+    parser.add_argument("-n", action='append_const', dest='stats_output',
                         const='stdout',
-                        help='Write statistics to standard out (default).'
+                        help='Write statistics to standard out only.'
                         )
 
-    parser.add_argument("-n", dest='interval', type=int,
+    parser.add_argument("-i", dest='interval', type=int,
                         help="Interval in seconds (default={}).".format(
                             default_interval)
                         )
-
-    db = 'DB connection parameters should be defined in configuration file.'
-    parser.add_argument("-d", action='append_const', dest='stats_output',
-                        const='db',
-                        help='Write statistics to database. ' + db
-                        )
-
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument("-r", action='store_true', dest='channels_from_db',
-                       help='Read channels from database. ' + db
-                       )
 
     parser.add_argument("channel", metavar='channel', nargs='*',
                         type=multicast_address,
@@ -203,8 +192,7 @@ def args_to_config(args):
         logging_level=logging_level,
         channels=channels,
         channels_from_db=False if channels else None,
-        interval=args.interval,
-        stats_output=args.stats_output
+        interval=args.interval
         )
     return Config(main=main)
 
