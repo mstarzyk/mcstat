@@ -14,7 +14,7 @@ try:
     # Python 2
     from Queue import Queue
 except ImportError:
-    # Python 2
+    # Python 3
     from queue import Queue
 
 
@@ -36,20 +36,23 @@ def make_nonblocking(fd):
     fcntl.fcntl(fd, fcntl.F_SETFL, flags)
 
 
-# TODO
-def signal_to_pipe(signal_number):
+def signal_to_pipe(*signal_numbers):
     """
     Returns read file descriptor of a pipe. This pipe will receive '\0' byte
     message when the main thread gets a signal.
 
-    TODO: This should work only on the signal passed in the parameter, and
-          ignore other signals.
+    :param signal_numbers: list of signals whose default handler should be
+    disabled, so that application can shut down gracefully.
+
+    :return: Read file descriptor that will receive '\0' on signal.
     """
 
     pipe_read, pipe_write = os.pipe()
     make_nonblocking(pipe_write)
 
-    signal.signal(signal.SIGINT, lambda signal, frame: None)
+    do_nothing = lambda signal, frame: None
+    for num in signal_numbers:
+        signal.signal(num, do_nothing)
     signal.set_wakeup_fd(pipe_write)
 
     return pipe_read
@@ -70,7 +73,7 @@ def main2(channels, interval, outputs, db_config):
     for ip, port in channels:
         assert is_multicast(ip)
 
-    wake_up_fd = signal_to_pipe(signal.SIGINT)
+    wake_up_fd = signal_to_pipe(signal.SIGINT, signal.SIGTERM)
 
     def make_queue():
         return Queue(1000)
