@@ -15,7 +15,7 @@ mcstat should be restarted.
 ## Setup
 ### Requirements
 - Python 2 and [Setuptools](https://pypi.python.org/pypi/setuptools) are required for installation.
-- [VLC](https://en.wikipedia.org/wiki/VLC_media_player) is optional -- for smoke testing the installation.
+- [VLC](https://en.wikipedia.org/wiki/VLC_media_player) is optional - for smoke testing the installation.
 - PostgreSQL database and [psycopg2](https://pypi.python.org/pypi/psycopg2) are required for writing statistics to database
  (PostgreSQL is the only database supported.)
 
@@ -71,7 +71,7 @@ All configuration parameters are explained in the config file.
 To run mcstat:
 
 ```
-mcstat -c SOME_PATH/usr/local/etc/mcstat.conf
+mcstat -c SOME_PATH/mcstat.conf
 ```
 
 To see help on commandline parameters:
