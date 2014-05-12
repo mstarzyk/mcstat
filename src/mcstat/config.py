@@ -14,7 +14,6 @@ _Main = namedtuple('Main', ('logging_level', 'channels', 'interval',
 _DB = namedtuple('DB', ('query_sql', 'update_sql', 'host', 'database',
                         'user', 'password')
                  )
-_Statsd = namedtuple('Statsd', ('host', 'port'))
 
 
 def with_defaults(cls, f=lambda key: None):
