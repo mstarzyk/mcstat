@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='mcstat',
-      version='0.2',
+      version='0.3.dev',
       description='Multicast statistics',
       author='Maciej Starzyk',
       author_email='mstarzyk@gmail.com',
