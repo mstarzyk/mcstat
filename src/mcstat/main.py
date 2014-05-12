@@ -63,13 +63,16 @@ def make_daemon(thread):
     return thread
 
 
-def main2(channels, interval, outputs, db_config):
+def main2(main_config, db_config):
     """
-    :param channels: list of tuples (address, port)
-    :param interval: interval in seconds for calculating statistics
-    :param outputs: list of output keys
-    :param db_config: database configuration
+    :type main_config: mcstat.config._Main
+    :type db_config: mcstat.config._DB
     """
+
+    channels = main_config.channels
+    interval = main_config.interval
+    outputs = main_config.stats_output
+
     for ip, port in channels:
         assert is_multicast(ip)
 
@@ -82,6 +85,14 @@ def main2(channels, interval, outputs, db_config):
     threads = []
 
     T = ThreadWithLog
+
+    if main_config.channels_from_db:
+        import mcstat.backend.db as DB
+        channels = DB.get_channels(db_config)
+        log.info("Loaded %d channels from database.", len(channels))
+    channels = sorted(channels)
+    for i, channel in enumerate(channels, 1):
+        log.info("Channel %s: %s:%d", i, channel[0], channel[1])
 
     if 'db' in outputs:
         queue = make_queue()
@@ -119,8 +130,6 @@ def main():
     config = make_config(sys.argv[1:])
     setup_logging(config.main.logging_level)
     log.debug("Configuration:\n%s", config)
-    return main2(channels=config.main.channels,
-                 interval=config.main.interval,
-                 outputs=config.main.stats_output,
+    return main2(main_config=config.main,
                  db_config=config.db
                  )

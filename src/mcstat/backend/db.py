@@ -71,3 +71,8 @@ def worker(queue, db_config):
                        'packets': metric.packets
                        }
                 db.write([row])
+
+
+def get_channels(db_config):
+    with closing(DB(db_config)) as db:
+        return db.get_channels()
