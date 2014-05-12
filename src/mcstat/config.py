@@ -7,7 +7,7 @@ from collections import namedtuple
 
 default_interval = 1
 
-_Config = namedtuple('Config', ('main', 'db', 'statsd'))
+_Config = namedtuple('Config', ('main', 'db'))
 _Main = namedtuple('Main', ('logging_level', 'channels', 'interval',
                             'stats_output', 'channels_from_db')
                    )
@@ -29,10 +29,8 @@ def with_defaults(cls, f=lambda key: None):
 
 Main = with_defaults(_Main)
 DB = with_defaults(_DB)
-Statsd = with_defaults(_Statsd)
 Config = with_defaults(_Config, lambda key: {'main': Main,
                                              'db': DB,
-                                             'statsd': Statsd
                                              }[key]())
 
 
@@ -60,9 +58,6 @@ def load_config(file_name):
                 }
 
     db_config = cc('db', _DB._fields)
-    statsd_config = cc('statsd', _Statsd._fields)
-    if 'port' in statsd_config:
-        statsd_config['port'] = int(statsd_config['port'])
 
     split = lambda x: x.split()
     addr = lambda x: tuple({multicast_address(a) for a in x.split()})
@@ -73,8 +68,7 @@ def load_config(file_name):
                 )
 
     return Config(main=main,
-                  db=DB(**db_config),
-                  statsd=Statsd(**statsd_config)
+                  db=DB(**db_config)
                   )
 
 
@@ -180,7 +174,6 @@ def merge_configs(*configs):
     def merge_conf(a, b):
         return Config(main=merge(a.main, b.main),
                       db=merge(a.db, b.db),
-                      statsd=merge(a.statsd, b.statsd)
                       )
 
     if len(configs) == 0:
