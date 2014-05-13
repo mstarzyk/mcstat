@@ -6,7 +6,7 @@ setup(name='mcstat',
       author='Maciej Starzyk',
       author_email='mstarzyk@gmail.com',
       url='https://github.com/mstarzyk/mcstat',
-      packages=['mcstat', 'mcstat.tests'],
+      packages=['mcstat', 'mcstat.tests', 'mcstat.backend'],
       entry_points={
           'console_scripts': [
               'mcstat = mcstat.main:main',
